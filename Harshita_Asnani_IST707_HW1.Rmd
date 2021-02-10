@@ -1,0 +1,173 @@
+---
+title: "IST707_HW_1_Harshita_Asnani"
+author: "Harshita Asnani"
+date: "9/19/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library(arules)
+
+library(shiny)
+
+library(rmarkdown)
+
+library(corrplot)
+
+library(RColorBrewer)
+
+library(tidyverse)
+
+library(arulesViz)
+```
+
+
+```{r}
+setwd('/Users/harshita/Downloads')
+data <- read_csv('employee_attrition(1).csv')
+typeof(sapply(data,typeof))
+lengths(lapply(data, unique))
+for (col in colnames(data)){
+  print(which(is.na(data[col])))
+}
+
+data<- na.omit(data)
+
+
+```
+Age and TotalWorkingYears are positively correlated 0.65
+MonthlyIncome and TotalWorkingYears 0.73
+YearsInCurrentRole and YearsAtCompany 0.61
+YearsSinceLastPromotion and YearsAtCompany 0.54
+Thus, we can just use YearsAtCompany insted of using both YearsInCurrentRole and YearsSinceLastPromotion to reduce the dimensionality while using Association rules mining. The same applies to  MonthlyIncome Age and TotalWorkingYears.
+Also, there were less than 50 rows which had na values which is less than 5% of the data and thus, the rows with any field as na are omitted
+
+## Outlier Detection
+
+```{r }
+
+boxplot(data$DistanceFromHome)
+which(data$DistanceFromHome > 200)
+data <- data[-which(data$DistanceFromHome > 200),]
+```
+As we can there are a few records which are definite outliers and are thus, omitted from data.
+```{r }
+boxplot(data$MonthlyIncome)
+which(data$MonthlyIncome > 17000)
+```
+While detecting outliers for MonthlyIncome column we could see that there are many data points which are identified as possible outliers. However, it is pretty common that people havinh higher positions in different job roles are paid higher. Thus, to analyse that there is a plot displaying the joblevels of all the employees whose monthly salaries are higher than $17000.
+```{r }
+x <- c(which(data$MonthlyIncome > 17000))
+barplot(table(data[x,15]))
+```
+As, suggested the people with higher Joblevels have higher salaries and are thus, not outliers.
+
+```{r include=FALSE}
+which(data$YearsInCurrentRole>data$TotalWorkingYears)
+data<-data[-which(data$YearsWithCurrManager>data$YearsAtCompany),]
+which(data$YearsInCurrentRole>data$YearsAtCompany)
+which(data$YearsSinceLastPromotion>data$YearsAtCompany)
+which(data$JobSatisfaction==data$EnvironmentSatisfaction)
+```
+These are some logical tests that the data should follow. For eg. YearsInCurrentRole cannot be greater than the total working years. If any such data rows are found that don't follow these tests they are removed
+
+```{r }
+barplot(table(data$Attrition))
+
+```
+
+
+```{r include= FALSE}
+barplot(table(data$BusinessTravel))
+barplot(table(data$Department))
+barplot(table(data$Education))
+barplot(table(data$EducationField))
+barplot(table(data$EnvironmentSatisfaction))
+barplot(table(data$Gender))
+barplot(table(data$JobInvolvement))
+barplot(table(data$JobLevel))
+barplot(table(data$JobRole))
+barplot(table(data$JobSatisfaction))
+barplot(table(data$MaritalStatus))
+barplot((table(data$OverTime)))
+barplot(table(data$PerformanceRating))
+barplot(table(data$RelationshipSatisfaction))
+barplot(table(data$StockOptionLevel))
+barplot(table(data$WorkLifeBalance))
+```
+
+There were a few barplots that were built the most intresting observation found in these was that the Attrition data is highly imbalced.i.e more than 75% of rows have Attrition vale as No. Which is a good thing for the company as the employees in the company are intrested in staying 
+
+
+## Discretization
+```{r include=FALSE}
+continus_var=c('Age','DailyRate','DistanceFromHome','HourlyRate','MonthlyIncome','MonthlyRate','NumCompaniesWorked','PercentSalaryHike','TotalWorkingYears','YearsAtCompany','YearsInCurrentRole','YearsSinceLastPromotion','YearsWithCurrManager')
+data['Age_dis']=data['Age']>=median(data$Age)
+data['DailyRate_dis']=data['DailyRate']>=median(data$DailyRate)
+data['DistanceFromHome_dis'] = data['DistanceFromHome']>=median(data$DistanceFromHome)
+data['HourlyRate_dis'] = data['HourlyRate']>=median(data$HourlyRate)
+data['MonthlyIncome_dis'] = data['MonthlyIncome']>=median(data$MonthlyIncome)
+data['MonthlyRate_dis'] = data['MonthlyRate']>=median(data$MonthlyRate)
+data['NumCompaniesWorked_dis'] = data['NumCompaniesWorked']>=2
+data['PercentSalaryHike_dis'] = data['PercentSalaryHike']>=median(data$PercentSalaryHike)
+data['TotalWorkingYears_dis'] = data['TotalWorkingYears']>=10
+data['YearsAtCompany_dis'] = data['TotalWorkingYears']>=10
+data['YearsInCurrentRole_dis'] = data['YearsInCurrentRole']>=5
+data['YearsSinceLastPromotion_dis']=data['YearsSinceLastPromotion']>=3
+data['YearsWithCurrManager_dis'] = data['YearsWithCurrManager']>=5
+d_col = c('Age_dis','DailyRate_dis','DistanceFromHome_dis','HourlyRate_dis','MonthlyIncome_dis','NumCompaniesWorked_dis','PercentSalaryHike_dis','TotalWorkingYears_dis','YearsAtCompany_dis','YearsInCurrentRole_dis','YearsSinceLastPromotion_dis','YearsWithCurrManager_dis')
+
+```
+
+```{r}
+hist(data$Age)
+hist(data$TotalWorkingYears)
+```
+
+Another Important thing to do is discretization of continous variable. The discretization is mostly done based on median of data if the data in the column is not highly skewed. For other columns a value is used.
+
+## Factorization
+```{r include=FALSE}
+fac_col=c('Education','EnvironmentSatisfaction','JobInvolvement','JobLevel','JobSatisfaction','PerformanceRating','RelationshipSatisfaction','StockOptionLevel','WorkLifeBalance')
+data$Education<-factor(data$Education)
+data$EnvironmentSatisfaction<-factor(data$EnvironmentSatisfaction)
+data$JobInvolvement<-factor(data$JobInvolvement)
+data$JobLevel<-factor(data$JobLevel)
+data$JobSatisfaction<-factor(data$JobSatisfaction)
+data$PerformanceRating<- factor(data$PerformanceRating)
+data$RelationshipSatisfaction<-factor(data$RelationshipSatisfaction)
+data$StockOptionLevel <- factor(data$StockOptionLevel)
+data$WorkLifeBalance<-factor(data$WorkLifeBalance)
+data$Attrition<- factor(data$Attrition)
+data$BusinessTravel<-factor(data$BusinessTravel)
+data$Department<-factor(data$Department)
+data$EducationField<-factor(data$EducationField)
+data$Gender<-factor(data$Gender)
+data$JobRole<-factor(data$JobRole)
+data$MaritalStatus<-factor(data$MaritalStatus)
+data$OverTime<-factor(data$OverTime)
+```
+The apriori rules take factors as data. Thus, the next step is to factorize the categorical data. It is important to note here that some columns such as JobSatisfaction which are factords in numeric format
+```{r }
+o_col=c('Attrition','BusinessTravel','Department','EducationField','Gender','JobRole','MaritalStatus','OverTime')
+a_col=c(fac_col,d_col,o_col)
+data <- data[,c(fac_col,d_col,o_col)] 
+colnames(data)
+
+new_data<-data[,-c(1,2,4,5,7,8,17,19,20,27)]
+#rules_record <- apriori(data,appearance = list(default = "lhs", rhs = c("Attrition=No", "Attrition=Yes")),#
+                        #control = list(verbose = F))#
+rules_record <- apriori(new_data,appearance = list(default = "lhs", rhs = c("Attrition=No", "Attrition=Yes")),parameter=list(confidence=0.9,support=0.1),
+                        control = list(verbose = F))
+
+plot(rules_record, measure = c("support", "lift"), shading = "confidence")
+```
+The arules are generated with the help of above code.As we are using Association Rule Mining as a Supervised Learning Algorithm we have specified our rhs as our target variable i.e Attrition.
+
+
+Here is link to the video of webapp
+https://photos.app.goo.gl/KCN8y47bA3kfMvNU9
